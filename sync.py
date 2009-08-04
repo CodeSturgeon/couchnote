@@ -15,6 +15,7 @@ log = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
 
 meta_store = {}
+scan_dir = '/Users/fish/Documents/Notes'
 
 class CouchNote(schema.Document):
     summary = schema.TextField()
@@ -26,6 +27,7 @@ class CouchNote(schema.Document):
         schema.Schema.build(couchnote = schema.BooleanField(default = True)))
 
 def save_note(meta, detail):
+    # FIXME Missing md5
     if meta.has_key('id'):
         note = CouchNote.load(db, meta['id'])
         note.summary = meta['summary']
@@ -68,6 +70,7 @@ def set_meta(file_path, meta):
     meta_store[file_path] = meta
 
 def get_meta(path):
+    # FIXME shoud be able to pass a couchnote... or is that make_meta?
     global meta_store
     if meta_store.has_key(path):
         return meta_store[path]
@@ -78,6 +81,7 @@ def get_meta(path):
         return meta
 
 def sync_dir(scan_dir):
+    local_changes = []
     for root, dirs, files in os.walk(scan_dir):
         log.info('Scanning %s'%root)
         for file in files:
@@ -89,13 +93,49 @@ def sync_dir(scan_dir):
                 md5 = hashlib.md5(content).hexdigest()
                 meta = get_meta(rel_path)
                 if md5 != meta.get('md5',''):
-                    meta['md5'] = md5
-                    save_note(meta, content)
+                    local_changes.append(rel_path)
+    return local_changes
+
+def download_note(path):
+    # Get doc_id from view
+    doc_id = db.view('couchnote/paths', key=path).rows[0]['id']
+    note = CouchNote.load(db, doc_id)
+    open(os.path.join(scan_dir, note.file_path).'w').write(note.detail)
+    meta = get_meta(note.file_path)
+    meta['md5'] = hashlib.md5(content).hexdigest()
+    meta['id'] = note.id
+    meta['rev'] = note.rev
+    meta['summary'] = note.summary
+    set_meta(meta)
+
+def get_couch_updates():
+    remote_changes = []
+    for row in db.view('couchnote/paths'):
+        local_meta = get_meta(row['key'])
+        if local_meta.get('rev','') == row['value']:
+            continue
+        remote_changes.append(path)
+    return remote_changes
+         
 
 def main():
     load_store()
-    scan_dir = '/Users/fish/Documents/Notes'
-    sync_dir(scan_dir)
+# get list of locally changed/new files...
+    local_changes = sync_dir(scan_dir)
+# get list of changed/new couch docs...
+    remote_changes = get_couch_updates()
+# apply anything that does not conflict
+    conflicts = []
+    for path in local_change:
+        if path not in remote_changes:
+            save_note(path)
+        else:
+            conflicts.append(path)
+    for path in remote_changes:
+        if path not in conflicts:
+            download_note(path)
+    for path in conflicts:
+        log.error('Conflict with file %s'%path)
     save_store()
 
 if __name__ == '__main__':

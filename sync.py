@@ -12,10 +12,11 @@ import hashlib
 
 import logging
 log = logging.getLogger()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 meta_store = {}
-scan_dir = '/Users/fish/Documents/Notes'
+#scan_dir = '/Users/fish/Documents/Notes'
+scan_dir = '/home/fish/notes'
 
 class CouchNote(schema.Document):
     summary = schema.TextField()
@@ -26,7 +27,8 @@ class CouchNote(schema.Document):
     implements = schema.DictField(
         schema.Schema.build(couchnote = schema.BooleanField(default = True)))
 
-def save_note(meta, detail):
+def upload_note(meta, detail):
+    log.info('Uploading %s'%meta['file_path'])
     # FIXME Missing md5
     if meta.has_key('id'):
         note = CouchNote.load(db, meta['id'])
@@ -53,11 +55,11 @@ def load_store():
     global meta_store
     if os.path.isfile('meta.cache'):
         meta_store = pickle.load(open('meta.cache'))
-    else:
-        open('meta.cache','w').close()
 
 def save_store():
     global meta_store
+    if not os.path.isfile('meta.cache'):
+        open('meta.cache','w').close()
     pickle.dump(meta_store, open('meta.cache','w'))
 
 def ask_user(question):
@@ -93,20 +95,24 @@ def sync_dir(scan_dir):
                 md5 = hashlib.md5(content).hexdigest()
                 meta = get_meta(rel_path)
                 if md5 != meta.get('md5',''):
+                    meta['md5'] = md5
+                    set_meta(rel_path, meta)
                     local_changes.append(rel_path)
     return local_changes
 
 def download_note(path):
     # Get doc_id from view
+    log.info('Downloading %s'%path)
     doc_id = db.view('couchnote/paths', key=path).rows[0]['id']
     note = CouchNote.load(db, doc_id)
-    open(os.path.join(scan_dir, note.file_path).'w').write(note.detail)
+    open(os.path.join(scan_dir, note.file_path),'w').write(note.detail)
     meta = get_meta(note.file_path)
-    meta['md5'] = hashlib.md5(content).hexdigest()
+    meta['md5'] = hashlib.md5(note.detail).hexdigest()
     meta['id'] = note.id
     meta['rev'] = note.rev
+    meta['file_path'] = note.file_path
     meta['summary'] = note.summary
-    set_meta(meta)
+    set_meta(note.file_path, meta)
 
 def get_couch_updates():
     remote_changes = []
@@ -114,7 +120,7 @@ def get_couch_updates():
         local_meta = get_meta(row['key'])
         if local_meta.get('rev','') == row['value']:
             continue
-        remote_changes.append(path)
+        remote_changes.append(row['key'])
     return remote_changes
          
 
@@ -126,9 +132,9 @@ def main():
     remote_changes = get_couch_updates()
 # apply anything that does not conflict
     conflicts = []
-    for path in local_change:
+    for path in local_changes:
         if path not in remote_changes:
-            save_note(path)
+            upload_note(path)
         else:
             conflicts.append(path)
     for path in remote_changes:

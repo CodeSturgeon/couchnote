@@ -15,7 +15,6 @@ log = logging.getLogger()
 logging.basicConfig(level=logging.DEBUG)
 
 meta_store = {}
-#scan_dir = '/Users/fish/Documents/Notes'
 scan_dir = './test_notes'
 default_cache_filepath = './meta.cache'
 
@@ -114,14 +113,16 @@ def get_couch_new_changed():
 
 def get_couch_changed():
     remote_changes = []
-    keys = meta_store.keys()
-    for row in db.view('couchnote/paths', keys=keys):
-        local_meta = meta_store[row['key']]
-        if local_meta['rev'] != row['value']:
-            log.info('Linked Couch Document changed: %s'%row['key'])
-            remote_changes.append(row['key'])
+    ids = {}
+    for path in meta_store:
+        ids[meta_store[path]['id']] = {'path': path,
+                                       'rev': meta_store[path]['rev']}
+    for row in db.view('_all_docs', keys=ids.keys()):
+        if ids[row['id']]['rev'] != row['value']['rev']:
+            log.info(
+                'Linked Couch Document changed: %s'%ids[row['id']]['path'])
+            remote_changes.append(ids[row['id']]['path'])
     return remote_changes
-
 
 def get_local_changed():
     local_changes = []

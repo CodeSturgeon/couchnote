@@ -65,8 +65,8 @@ def ask_user(question):
     # UI abstraction, return true or false
     pass
 
-def get_new_changed_paths(scan_dir):
-    local_changes = []
+def get_new_local(scan_dir):
+    local_new = []
     for root, dirs, files in os.walk(scan_dir):
         log.info('Scanning %s'%root)
         for file in files:
@@ -74,33 +74,32 @@ def get_new_changed_paths(scan_dir):
             if ext == '.txt':
                 full_path = os.path.join(root,file)
                 rel_path = full_path[len(scan_dir):].lstrip('/')
-                content = open(full_path).read()
-                md5 = hashlib.md5(content).hexdigest()
-                meta = meta_store.get(rel_path, {})
-                if md5 != meta.get('md5',''):
-                    meta['md5'] = md5
-                    meta_store[rel_path] = meta
-                    local_changes.append(rel_path)
-    return local_changes
+                if meta_store.has_key(rel_path):
+                    local_new.append(rel_path)
+    return local_new
 
-def download_note(path):
-    # Get doc_id from view
-    log.info('Downloading %s'%path)
-    doc_id = db.view('couchnote/paths', key=path).rows[0]['id']
-    note = CouchNote.load(db, doc_id)
-    file_dir = os.path.join(scan_dir, os.path.split(note.file_path)[0])
-    if file_dir != '':
-        if not os.path.isdir(file_dir):
-            log.info('Making dir: %s'%file_dir)
-            os.makedirs(file_dir)
-    open(os.path.join(scan_dir, note.file_path),'w').write(note.detail)
-    meta = {}
-    meta['md5'] = hashlib.md5(note.detail).hexdigest()
-    meta['id'] = note.id
-    meta['rev'] = note.rev
-    meta['file_path'] = note.file_path
-    meta['summary'] = note.summary
-    meta_store[note.file_path] = meta
+def download_note(paths):
+    if not isinstance(path, type([])):
+        # Allow a single path to be passed as well as a list
+        paths = [paths]
+    for path in paths:
+        # Get doc_id from view
+        log.info('Downloading %s'%path)
+        doc_id = db.view('couchnote/paths', key=path).rows[0]['id']
+        note = CouchNote.load(db, doc_id)
+        file_dir = os.path.join(scan_dir, os.path.split(note.file_path)[0])
+        if file_dir != '':
+            if not os.path.isdir(file_dir):
+                log.info('Making dir: %s'%file_dir)
+                os.makedirs(file_dir)
+        open(os.path.join(scan_dir, note.file_path),'w').write(note.detail)
+        meta = {}
+        meta['md5'] = hashlib.md5(note.detail).hexdigest()
+        meta['id'] = note.id
+        meta['rev'] = note.rev
+        meta['file_path'] = note.file_path
+        meta['summary'] = note.summary
+        meta_store[note.file_path] = meta
 
 def get_couch_new_changed():
     remote_changes = []

@@ -1,68 +1,35 @@
 #!/usr/bin/env python
-# bump 2
+
 import os.path
 import couchdb
-from couchdb import schema
-from datetime import datetime
 server = couchdb.Server('http://localhost:5984/')
 db = server['noteish']
 
-import pickle
 import hashlib
+
+from store import MetaStore
+from model import CouchNote
 
 import logging
 log = logging.getLogger()
 logging.basicConfig(level=logging.DEBUG)
 
-meta_store = {}
 scan_dir = './test_notes'
-default_cache_filepath = './meta.cache'
 
-class CouchNote(schema.Document):
-    summary = schema.TextField()
-    detail = schema.TextField()
-    file_path = schema.TextField()
-    last_update_time = schema.DateTimeField(default=datetime.now)
-    #udpate_notes = TextField() # going to tai chi, more of a status message?
-    implements = schema.DictField(
-        schema.Schema.build(couchnote = schema.BooleanField(default = True)))
-
-def upload_note(meta, detail):
-    log.info('Uploading %s'%meta['file_path'])
-    # FIXME Missing md5
-    if meta.has_key('id'):
-        note = CouchNote.load(db, meta['id'])
-        note.summary = meta['summary']
-        note.file_path = meta['file_path']
-        log.info('Updating note: %s'%meta['file_path'])
-        # if note.rev != meta['rev']: ask_user()
-    else:
-        # warn about duplicat summary
-        # if len(db.view('couchapp/summaries', key=meta['summary'])) > 0:
-        # ask_user()
-        log.info('New note: %s'%meta['file_path'])
-        try:
-            note = CouchNote(detail = detail, **meta)
-        except UnicodeDecodeError:
-            log.error('Could not import %s'%meta['summary'])
-            return
-    note.store(db)
-    meta['id'] = note.id
+def upload_note(id, store):
+    meta = store.get_meta(id)
+    log.info('Updating note: %s'%meta['file_path'])
+    note = CouchNote.load(db, meta['id'])
     meta['rev'] = note.rev
-    meta_store[meta['file_path']] = meta
+    note.detail = open(meta['file_path']).read()
+    note.store(db)
+    store.update_metas((note, meta['file_path']))
 
-def load_store(cache_filepath=default_cache_filepath):
-    global meta_store
-    if os.path.isfile(cache_filepath):
-        meta_store = pickle.load(open(cache_filepath))
-
-def save_store(cache_filepath=default_cache_filepath):
-    if not os.path.isfile(cache_filepath):
-        open(cache_filepath,'w').close()
-    pickle.dump(meta_store, open(cache_filepath,'w'))
-
-def ask_user(question):
-    # UI abstraction, return true or false
+def new_note(file_path):
+    # split path
+    # make summary and file_path
+    # make and save note
+    # put in store
     pass
 
 def get_new_local(scan_dir):
@@ -78,72 +45,61 @@ def get_new_local(scan_dir):
                     local_new.append(rel_path)
     return local_new
 
-def download_note(paths):
-    if not isinstance(path, type([])):
-        # Allow a single path to be passed as well as a list
-        paths = [paths]
-    for path in paths:
-        # Get doc_id from view
-        log.info('Downloading %s'%path)
-        doc_id = db.view('couchnote/paths', key=path).rows[0]['id']
-        note = CouchNote.load(db, doc_id)
+def download_notes(ids, store):
+    note_paths = []
+    for note_id in ids:
+        # Get note_id from view
+        log.info('Downloading %s'%note_id)
+        note = CouchNote.load(db, note_id)
         file_dir = os.path.join(scan_dir, os.path.split(note.file_path)[0])
         if file_dir != '':
             if not os.path.isdir(file_dir):
                 log.info('Making dir: %s'%file_dir)
                 os.makedirs(file_dir)
         open(os.path.join(scan_dir, note.file_path),'w').write(note.detail)
-        meta = {}
-        meta['md5'] = hashlib.md5(note.detail).hexdigest()
-        meta['id'] = note.id
-        meta['rev'] = note.rev
-        meta['file_path'] = note.file_path
-        meta['summary'] = note.summary
-        meta_store[note.file_path] = meta
+        note_paths.append((note, note.file_path))
+    store.update_metas(note_paths)
 
-def get_couch_new_changed():
+def get_couch_new(store):
     remote_changes = []
+    ids = store.ids()
     for row in db.view('couchnote/paths'):
-        local_meta = meta_store.get(row['key'],{})
-        if local_meta.get('rev','') == row['value']:
-            continue
-        remote_changes.append(row['key'])
+        if row['id'] not in ids:
+            remote_changes.append(row['id'])
     return remote_changes
 
-def get_couch_changed():
+def get_couch_changed(store):
     remote_changes = []
-    ids = {}
-    for path in meta_store:
-        ids[meta_store[path]['id']] = {'path': path,
-                                       'rev': meta_store[path]['rev']}
-    for row in db.view('_all_docs', keys=ids.keys()):
-        if ids[row['id']]['rev'] != row['value']['rev']:
-            log.info(
-                'Linked Couch Document changed: %s'%ids[row['id']]['path'])
-            remote_changes.append(ids[row['id']]['path'])
+    ids = store.ids()
+    for row in db.view('_all_docs', keys=ids):
+        meta = store.get_meta(row['id'])
+        if meta['rev'] != row['value']['rev']:
+            log.info('Linked Couch Document changed: %s'%meta['file_path'])
+            remote_changes.append(row['id'])
     return remote_changes
 
-def get_local_changed():
+def get_local_changed(store):
     local_changes = []
     kill_list = []
-    for path in meta_store:
-        full_path = os.path.join(scan_dir,path)
+    for note_id, meta in store.store.iteritems():
+        full_path = os.path.join(scan_dir,meta['file_path'])
         if not os.path.isfile(full_path):
-            log.warn('File gone: %s'%path)
-            kill_list.append(path)
+            log.warn('File gone: %s'%meta['file_path'])
+            kill_list.append(note_id)
             continue
-        md5 = hashlib.md5(open(full_path).read()).hexdigest()
-        if meta_store[path]['md5'] != md5:
-            log.info('Local file changed: %s'%path)
-            local_changes.append(path)
+        file_md5 = hashlib.md5(open(full_path).read()).hexdigest()
+        if file_md5 != meta['md5']:
+            log.info('Local file changed: %s'%meta['file_path'])
+            local_changes.append(note_id)
     for killed in kill_list:
-        del meta_store[killed]
+        store.remove(killed)
     return local_changes
 
 def main():
-    load_store()
-    local_changes = get_local_changed()
-    remote_changes = get_couch_changed()
+    store = MetaStore()
+    local_changes = get_local_changed(store)
+    remote_changes = get_couch_changed(store)
+    #remote_changes = get_couch_new(store)
     conflicts = []
     upload = []
     download = []
@@ -160,28 +116,8 @@ def main():
     print 'Downloading: %s'%download
     print 'Conlifting: %s'%conflicts
 
-    #map(download_note, download)
-    save_store()
-
-def old_main():
-    load_store()
-# get list of locally changed/new files...
-    local_changes = sync_dir(scan_dir)
-# get list of changed/new couch docs...
-    remote_changes = get_couch_updates()
-# apply anything that does not conflict
-    conflicts = []
-    for path in local_changes:
-        if path not in remote_changes:
-            upload_note(path)
-        else:
-            conflicts.append(path)
-    for path in remote_changes:
-        if path not in conflicts:
-            download_note(path)
-    for path in conflicts:
-        log.error('Conflict with file %s'%path)
-    save_store()
+    #download_notes(download, store)
+    store.save()
 
 if __name__ == '__main__':
     main()

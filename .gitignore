@@ -1,4 +1,5 @@
 *.swp
 *.pyc
 *.cache
+*.pickle
 test_notes

@@ -16,8 +16,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 scan_dir = './test_notes'
 
-def upload_note(id, store):
-    meta = store.get_meta(id)
+def upload_note(note_id, store):
+    meta = store[note_id]
     log.info('Updating note: %s'%meta['file_path'])
     note = CouchNote.load(db, meta['id'])
     meta['rev'] = note.rev
@@ -62,17 +62,15 @@ def download_notes(ids, store):
 
 def get_couch_new(store):
     remote_changes = []
-    ids = store.ids()
     for row in db.view('couchnote/paths'):
-        if row['id'] not in ids:
+        if row['id'] not in store:
             remote_changes.append(row['id'])
     return remote_changes
 
 def get_couch_changed(store):
     remote_changes = []
-    ids = store.ids()
-    for row in db.view('_all_docs', keys=ids):
-        meta = store.get_meta(row['id'])
+    for row in db.view('_all_docs', keys=store.keys()):
+        meta = store[row['id']]
         if meta['rev'] != row['value']['rev']:
             log.info('Linked Couch Document changed: %s'%meta['file_path'])
             remote_changes.append(row['id'])
@@ -81,7 +79,7 @@ def get_couch_changed(store):
 def get_local_changed(store):
     local_changes = []
     kill_list = []
-    for note_id, meta in store.store.iteritems():
+    for note_id, meta in store.iteritems():
         full_path = os.path.join(scan_dir,meta['file_path'])
         if not os.path.isfile(full_path):
             log.warn('File gone: %s'%meta['file_path'])
@@ -92,7 +90,7 @@ def get_local_changed(store):
             log.info('Local file changed: %s'%meta['file_path'])
             local_changes.append(note_id)
     for killed in kill_list:
-        store.remove(killed)
+        del store[killed]
     return local_changes
 
 def main():
@@ -116,7 +114,7 @@ def main():
     print 'Downloading: %s'%download
     print 'Conlifting: %s'%conflicts
 
-    #download_notes(download, store)
+    download_notes(download, store)
     store.save()
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@
 import sys
 import couchdb
 from manager import NoteManager
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 
 import logging
 log = logging.getLogger(__name__)
@@ -13,21 +13,54 @@ def main():
     usage = '''usage: %prog command [options]
     
 Commands:
-  import - imports unkown txt files as new couch notes
+  import - imports unknown txt files as new couch notes
   sync - syncs non-conflicting changes with couch
   download - downloads all couch notes'''
-    parser = OptionParser(usage=usage)
-    parser.set_defaults(level=logging.WARN)
-    parser.add_option('-d', '--debug', action='store_const', dest='level',
-                      const=logging.DEBUG, help='Output DEBUG')
-    parser.add_option('-v', '--verbose', action='store_const', dest='level',
-                      const=logging.INFO, help='Output INFO')
-    parser.add_option('-q', '--quite', action='store_const', dest='level',
-                      const=logging.ERROR, help='Output ERROR')
+    parser = OptionParser(usage=usage,epilog=' ')
+    parser.set_defaults(level=logging.WARN,
+                        server_url='http://localhost:5984/',
+                        database_name='noteish',
+                        notes_root='./test_notes',
+                        cache_path='meta.cache'
+                       )
+
+    couch_group = OptionGroup(parser, "CouchDB Options",
+                              "Define connction to couchdb")
+    couch_group.add_option('-s', '--server-url', action='store',
+                           dest='server_url',
+                           help='URL of the couchdb server')
+    couch_group.add_option('-d', '--database-name', action='store',
+                           dest='database_name',
+                           help='Name of the couchdb')
+    parser.add_option_group(couch_group)
+
+    paths_group = OptionGroup(parser, "Path Options",
+                              "Define local paths to be used by manager")
+    paths_group.add_option('-n', '--note-root', action='store',
+                           dest='notes_root',
+                           help='Root path of the managed notes')
+    paths_group.add_option('-c', '--cache-path', action='store',
+                           dest='cache_path',
+                           help='Path to cache storage file')
+    parser.add_option_group(paths_group)
+
+    output_group = OptionGroup(parser, "Output Options",
+                                "Controll how much or little you are told")
+    output_group.add_option('-V', '--debug', action='store_const',
+                            dest='level', const=logging.DEBUG,
+                            help='Output all messages')
+    output_group.add_option('-v', '--verbose', action='store_const',
+                            dest='level', const=logging.INFO,
+                            help='Output INFO, WARN and ERROR messages')
+    output_group.add_option('-q', '--quite', action='store_const',
+                            dest='level', const=logging.ERROR,
+                            help='Output only ERROR messages')
+    parser.add_option_group(output_group)
+
     options, args = parser.parse_args(sys.argv)
     if len(args) < 2:
         parser.print_help()
-        sys.exit('No command specified specified')
+        sys.exit('!!No command specified specified!!')
 
     # Setup logging output
     logging.basicConfig(level=options.level)
@@ -35,9 +68,10 @@ Commands:
 
     # Setup main objects
     # Better to pass as string to manager?
-    server = couchdb.Server('http://localhost:5984/')
-    db = server['noteish']
-    note_man = NoteManager('./test_notes','meta.cache',db)
+    server = couchdb.Server(options.server_url)
+    db = server[options.database_name]
+    note_man = NoteManager(notes_root=options.notes_root, db=db,
+                           cache_path=options.cache_path)
 
     # Main command processing
     if args[1] == 'sync':
@@ -69,7 +103,7 @@ Commands:
         note_man.download_notes(new_notes)
     else:
         parser.print_help()
-        sys.exit('Bad command: %s'%args[1])
+        sys.exit('!!Bad command: %s!!'%args[1])
 
     # Cleanup
     note_man._cache_save()

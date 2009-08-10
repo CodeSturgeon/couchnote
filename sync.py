@@ -15,53 +15,60 @@ from optparse import OptionParser
 
 import logging
 log = logging.getLogger()
-logging.basicConfig(level=logging.DEBUG)
 
 scan_dir = './test_notes'
 
 def upload_notes(note_ids, store):
-    updates = []
+    note_paths = []
     for note_id in note_ids:
         meta = store[note_id]
-        log.info('Updating note: %s'%meta['file_path'])
+        log.info('Pushing changes in note: %s'%meta['file_path'])
         note = CouchNote.load(db, meta['id'])
         note.detail = open(os.path.join(scan_dir, meta['file_path'])).read()
         note.store(db)
-        updates.append((note, meta['file_path']))
-    store.update_metas(updates)
+        note_paths.append((note, meta['file_path']))
+    store.update_metas(note_paths)
 
-def new_note(file_path, store):
-    file_name = os.path.split(file_path)[1]
-    summary = os.path.splitext(file_name)[0]
-    detail = open().read()
-    note = CouchNote(summary=summary, detail=detail)
-    note.store(db)
-    store.update_metas((note, file_path))
+def import_files(file_paths, store):
+    note_paths = []
+    for file_path in file_paths:
+        log.info('Importing file: %s'%file_path)
+        file_name = os.path.split(file_path)[1]
+        summary = os.path.splitext(file_name)[0]
+        detail = open(os.path.join(scan_dir, file_path)).read()
+        note = CouchNote(summary=summary, detail=detail)
+        note.store(db)
+        note_paths.append((note, file_path))
+    store.update_metas(note_paths)
 
-def get_new_local(scan_dir):
+def get_local_new(store):
     local_new = []
+    known_paths = [store[key]['file_path'] for key in store]
     for root, dirs, files in os.walk(scan_dir):
-        log.info('Scanning %s'%root)
+        log.debug('Scanning %s'%root)
         for file in files:
             ext = os.path.splitext(file)[1]
             if ext == '.txt':
                 full_path = os.path.join(root,file)
                 rel_path = full_path[len(scan_dir):].lstrip('/')
-                if meta_store.has_key(rel_path):
+                if not rel_path in known_paths:
                     local_new.append(rel_path)
+                    log.info('Unknown local file found: %s'%rel_path)
     return local_new
 
 def download_notes(ids, store):
     note_paths = []
     for note_id in ids:
         # Get note_id from view
-        log.info('Downloading %s'%note_id)
+        log.info('Downloading id: %s'%note_id)
         note = CouchNote.load(db, note_id)
-        file_dir = os.path.join(scan_dir, os.path.split(note.file_path)[0])
-        if file_dir != '':
-            if not os.path.isdir(file_dir):
-                log.info('Making dir: %s'%file_dir)
-                os.makedirs(file_dir)
+        if not os.path.isfile(note.file_path):
+            file_dir = os.path.join(scan_dir, os.path.split(note.file_path)[0])
+            if file_dir != '':
+                if not os.path.isdir(file_dir):
+                    log.info('Making dir: %s'%file_dir)
+                    os.makedirs(file_dir)
+            log.info('Creating file: %s'%note.file_path)
         open(os.path.join(scan_dir, note.file_path),'w').write(note.detail)
         note_paths.append((note, note.file_path))
     store.update_metas(note_paths)
@@ -107,8 +114,13 @@ Commands:
   sync - syncs non-conflicting changes with couch
   download - downloads all couch notes'''
     parser = OptionParser(usage=usage)
-    parser.add_option('-v', '--verbose', action='store', dest='level',
-                      help='Output INFO')
+    parser.set_defaults(level=logging.WARN)
+    parser.add_option('-d', '--debug', action='store_const', dest='level',
+                      const=logging.DEBUG, help='Output DEBUG')
+    parser.add_option('-v', '--verbose', action='store_const', dest='level',
+                      const=logging.INFO, help='Output INFO')
+    parser.add_option('-q', '--quite', action='store_const', dest='level',
+                      const=logging.ERROR, help='Output ERROR')
     options, args = parser.parse_args(sys.argv)
     if len(args) < 2:
         parser.print_help()
@@ -116,15 +128,16 @@ Commands:
     if args[1] not in ['import', 'sync', 'download']:
         parser.print_help()
         sys.exit('Bad command: %s'%args[1])
+    logging.basicConfig(level=options.level)
     return options, args
 
 def main():
     options, args = do_parser()
     store = MetaStore()
+    log.debug('Getting underway')
     if args[1] == 'sync':
         local_changes = get_local_changed(store)
         remote_changes = get_couch_changed(store)
-        #remote_changes = get_couch_new(store)
         conflicts = []
         upload = []
         download = []
@@ -147,6 +160,14 @@ def main():
         for conflict in conflicts:
             meta = store[conflict]
             log.warn('Conflicting changes to: %(file_path)s [%(id)s]'%meta)
+    elif args[1] == 'import':
+        new_files = get_local_new(store)
+        import_files(new_files,store)
+    elif args[1] == 'download':
+        # Check if anything was deleted
+        get_local_changed(store)
+        new_notes = get_couch_new(store)
+        download_notes(new_notes, store)
     store.save()
 
 if __name__ == '__main__':

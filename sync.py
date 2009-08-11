@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import sys
 import couchdb
 from manager import NoteManager
@@ -20,8 +21,8 @@ Commands:
     parser.set_defaults(level=logging.WARN,
                         server_url='http://localhost:5984/',
                         database_name='noteish',
-                        notes_root='./test_notes',
-                        cache_path='meta.cache'
+                        notes_root='~/Documents/Notes',
+                        cache_path='~/.couchnote.cache'
                        )
 
     couch_group = OptionGroup(parser, "CouchDB Options",
@@ -70,8 +71,10 @@ Commands:
     # Better to pass as string to manager?
     server = couchdb.Server(options.server_url)
     db = server[options.database_name]
-    note_man = NoteManager(notes_root=options.notes_root, db=db,
-                           cache_path=options.cache_path)
+    notes_root = os.path.expanduser(options.notes_root)
+    cache_path = os.path.expanduser(options.cache_path)
+    note_man = NoteManager(notes_root=notes_root, db=db,
+                           cache_path=cache_path)
 
     # Main command processing
     if args[1] == 'sync':

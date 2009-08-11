@@ -66,9 +66,13 @@ class NoteManager(object):
             file_name = os.path.split(file_path)[1]
             summary = os.path.splitext(file_name)[0]
             detail = open(os.path.join(self._notes_root, file_path)).read()
-            note = CouchNote(summary=summary, detail=detail)
-            note.store(self._db)
-            note_paths.append((note, file_path))
+            try:
+                note = CouchNote(summary=summary, detail=detail,
+                                 file_path=file_path)
+                note.store(self._db)
+                note_paths.append((note, file_path))
+            except UnicodeDecodeError:
+                log.error('Could not import text from file: %s'%file_path)
         self.update_metas(note_paths)
 
     def download_notes(self, ids):

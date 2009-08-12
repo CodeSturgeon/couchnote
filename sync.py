@@ -20,10 +20,15 @@ Commands:
     parser = OptionParser(usage=usage,epilog=' ')
     parser.set_defaults(level=logging.WARN,
                         server_url='http://localhost:5984/',
-                        database_name='noteish',
-                        notes_root='~/Documents/Notes',
-                        cache_path='~/.couchnote.cache'
+                        database_name='notetest',
+                        notes_root='./test_notes',
+                        cache_path='./meta.cache',
+                        dry_run=False
                        )
+
+    parser.add_option('-n', '--dry-run', action='store_true',
+                           dest='dry_run',
+                           help='Make no actual changes')
 
     couch_group = OptionGroup(parser, "CouchDB Options",
                               "Define connction to couchdb")
@@ -37,7 +42,7 @@ Commands:
 
     paths_group = OptionGroup(parser, "Path Options",
                               "Define local paths to be used by manager")
-    paths_group.add_option('-n', '--note-root', action='store',
+    paths_group.add_option('-r', '--note-root', action='store',
                            dest='notes_root',
                            help='Root path of the managed notes')
     paths_group.add_option('-c', '--cache-path', action='store',
@@ -74,7 +79,7 @@ Commands:
     notes_root = os.path.expanduser(options.notes_root)
     cache_path = os.path.expanduser(options.cache_path)
     note_man = NoteManager(notes_root=notes_root, db=db,
-                           cache_path=cache_path)
+                           cache_path=cache_path, dry_run = options.dry_run)
 
     # Main command processing
     if args[1] == 'sync':

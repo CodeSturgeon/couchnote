@@ -16,9 +16,10 @@ class CouchNote(schema.Document):
         schema.Schema.build(couchnote = schema.BooleanField(default = True)))
 
 class NoteManager(object):
-    def __init__(self, notes_root, cache_path, db):
+    def __init__(self, notes_root, cache_path, db, dry_run=False):
         self._cache_path = cache_path
         self._notes_root = notes_root
+        self._dry_run = dry_run
         self._db = db
         self._cache = {}
         self._cache_load()
@@ -28,7 +29,8 @@ class NoteManager(object):
             self._cache = pickle.load(open(self._cache_path))
 
     def _cache_save(self):
-        pickle.dump(self._cache, open(self._cache_path,'w'))
+        if not self._dry_run:
+            pickle.dump(self._cache, open(self._cache_path,'w'))
 
     def update_metas(self, note_path_seq):
         for note, file_path in note_path_seq:
@@ -55,7 +57,8 @@ class NoteManager(object):
             log.info('Pushing changes in note: %s'%meta['file_path'])
             note = CouchNote.load(self._db, meta['id'])
             note.detail = open(os.path.join(self._notes_root, meta['file_path'])).read()
-            note.store(self._db)
+            if not self._dry_run:
+                note.store(self._db)
             note_paths.append((note, meta['file_path']))
         self.update_metas(note_paths)
 
@@ -69,7 +72,8 @@ class NoteManager(object):
             try:
                 note = CouchNote(summary=summary, detail=detail,
                                  file_path=file_path)
-                note.store(self._db)
+                if not self._dry_run:
+                    note.store(self._db)
                 note_paths.append((note, file_path))
             except UnicodeDecodeError:
                 log.error('Could not import text from file: %s'%file_path)
@@ -87,10 +91,12 @@ class NoteManager(object):
                 file_dir = os.path.split(full_path)[0]
                 if file_dir != '' and not os.path.isdir(file_dir):
                     log.info('Making dir: %s'%file_dir)
-                    os.makedirs(file_dir)
+                    if not self._dry_run:
+                        os.makedirs(file_dir)
                 log.info('Creating file: %s'%note.file_path)
-            open(os.path.join(self._notes_root, note.file_path),'w').write(note.detail)
-            note_paths.append((note, note.file_path))
+            if not self._dry_run:
+                open(os.path.join(self._notes_root, note.file_path),'w').write(note.detail)
+                note_paths.append((note, note.file_path))
         self.update_metas(note_paths)
 
     def get_local_new(self):

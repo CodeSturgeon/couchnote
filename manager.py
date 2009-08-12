@@ -116,7 +116,7 @@ class NoteManager(object):
 
     def get_couch_new(self):
         remote_changes = []
-        for row in self._db.view('couchnote/paths'):
+        for row in self._db.view('couchnote/summaries'):
             if row['id'] not in self._cache:
                 remote_changes.append(row['id'])
         return remote_changes

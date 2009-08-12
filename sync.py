@@ -3,8 +3,11 @@
 import os
 import sys
 import couchdb
+from couchdb.client import ResourceNotFound
 from manager import NoteManager
 from optparse import OptionParser, OptionGroup
+
+import socket
 
 import logging
 log = logging.getLogger(__name__)
@@ -75,7 +78,12 @@ Commands:
     # Setup main objects
     # Better to pass as string to manager?
     server = couchdb.Server(options.server_url)
-    db = server[options.database_name]
+    try:
+        db = server[options.database_name]
+    except socket.error:
+        sys.exit('Could not connect to %s'%options.server_url)
+    except ResourceNotFound:
+        sys.exit('Could not find db named "%s"'%options.database_name)
     notes_root = os.path.expanduser(options.notes_root)
     cache_path = os.path.expanduser(options.cache_path)
     note_man = NoteManager(notes_root=notes_root, db=db,

@@ -13,6 +13,23 @@ import logging
 log = logging.getLogger(__name__)
 
 def main():
+    defaults = {
+            'level': logging.WARN,
+            'server_url': 'http://localhost:5984/',
+            'database_name': 'noteish',
+            'notes_root': '~/Documents/Notes',
+            'cache_path': '~/.couchnote.cache',
+            'dry_run': False
+        }
+
+    if sys.argv[0].endswith('.py'):
+        # Assume we are in dev mode and change defaults
+        defaults.update({
+                'database_name': 'notetest',
+                'notes_root': './test_notes',
+                'cache_path': './meta.cache'
+            })
+
     # Do option parsing
     usage = '''usage: %prog command [options]
     
@@ -21,13 +38,7 @@ Commands:
   sync - syncs non-conflicting changes with couch
   download - downloads all couch notes'''
     parser = OptionParser(usage=usage,epilog=' ')
-    parser.set_defaults(level=logging.WARN,
-                        server_url='http://localhost:5984/',
-                        database_name='notetest',
-                        notes_root='./test_notes',
-                        cache_path='./meta.cache',
-                        dry_run=False
-                       )
+    parser.set_defaults(**defaults)
 
     parser.add_option('-n', '--dry-run', action='store_true',
                            dest='dry_run',
@@ -74,6 +85,7 @@ Commands:
     # Setup logging output
     logging.basicConfig(level=options.level)
     log.debug('Getting underway')
+    log.debug('Options %s'%options)
 
     # Setup main objects
     # Better to pass as string to manager?

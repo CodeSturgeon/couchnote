@@ -121,9 +121,11 @@ class NoteManager(object):
                 remote_changes.append(row['id'])
         return remote_changes
 
-    def get_couch_changed(self):
+    def get_couch_changed(self, ids=None):
+        if keys is None:
+            keys = self._cache.keys()
         remote_changes = []
-        for row in self._db.view('_all_docs', keys=self._cache.keys()):
+        for row in self._db.view('_all_docs', keys=keys):
             meta = self._cache[row['id']]
             if meta['rev'] != row['value']['rev']:
                 log.info('Linked Couch Document changed: %s'%meta['file_path'])

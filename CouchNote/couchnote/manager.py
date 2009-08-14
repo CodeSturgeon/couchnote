@@ -6,6 +6,9 @@ from datetime import datetime
 import logging
 log = logging.getLogger(__name__)
 
+import cStringIO
+from ConfigParser import RawConfigParser
+
 class CouchNote(schema.Document):
     summary = schema.TextField()
     detail = schema.TextField()
@@ -57,6 +60,7 @@ class NoteManager(object):
             log.info('Pushing changes in note: %s'%meta['file_path'])
             note = CouchNote.load(self._db, meta['id'])
             note.detail = open(os.path.join(self._notes_root, meta['file_path'])).read()
+            note.summary = meta['summary']
             if not self._dry_run:
                 note.store(self._db)
             note_paths.append((note, meta['file_path']))
@@ -148,3 +152,30 @@ class NoteManager(object):
         for killed in kill_list:
             del self._cache[killed]
         return local_changes
+
+    def export_meta(self, id):
+        meta = self._cache[id]
+        cfg = RawConfigParser()
+        cfg.add_section('couchdb')
+        cfg.set('couchdb', 'id', id)
+        cfg.set('couchdb', 'rev', meta['rev'])
+        cfg.add_section('local')
+        cfg.set('local', 'md5', meta['md5'])
+        cfg.set('local', 'mtime', meta['mtime'])
+        cfg.add_section('user')
+        cfg.set('user', 'summary', meta['summary'])
+        ret = cStringIO.StringIO()
+        cfg.write(ret)
+        return ret.getvalue()
+
+    def import_meta(self, note_id, str):
+        log.debug('Checking meta update for %s'%note_id)
+        cfg_file = cStringIO.StringIO(str)
+        cfg = RawConfigParser()
+        cfg.readfp(cfg_file)
+        summary = cfg.get('user', 'summary')
+        if summary is not None:
+            if summary != self._cache[note_id]['summary']:
+                log.info('Summary updated on %s'%note_id)
+                self._cache[note_id]['summary'] = summary
+                self.upload_notes([note_id])

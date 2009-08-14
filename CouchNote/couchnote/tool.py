@@ -7,6 +7,9 @@ from couchdb.client import ResourceNotFound
 from manager import NoteManager
 from optparse import OptionParser, OptionGroup
 
+from tempfile import NamedTemporaryFile
+from subprocess import call
+
 import socket
 
 import logging
@@ -88,7 +91,6 @@ Commands:
     log.debug('Options %s'%options)
 
     # Setup main objects
-    # Better to pass as string to manager?
     server = couchdb.Server(options.server_url)
     try:
         db = server[options.database_name]
@@ -129,6 +131,17 @@ Commands:
         note_man.get_local_changed()
         new_notes = note_man.get_couch_new()
         note_man.download_notes(new_notes)
+    elif args[1] == 'medit':
+        note_id = '16a71fedeff4b0b9cbc188af62d1bb72'
+        cfg_str = note_man.export_meta(note_id)
+        tmp_file = NamedTemporaryFile()
+        tmp_file.write(cfg_str)
+        tmp_file.flush()
+        editor = os.getenv('EDITOR')
+        if call([editor,tmp_file.name]) != 0:
+            sys.exit('Editor problem')
+        note_man.import_meta(note_id, open(tmp_file.name).read())
+        tmp_file.close()
     else:
         parser.print_help()
         sys.exit('!!Bad command: %s!!'%args[1])

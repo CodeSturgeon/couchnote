@@ -136,7 +136,7 @@ Commands:
             sys.exit('Need to specify a path!')
         elif len(args) > 3:
             log.warn('Discarding: %s'%args[3:])
-        note_id = note_man.paths_to_ids(args[2:3])
+        note_id = note_man.paths_to_ids(args[2:3])[0]
         cfg_str = note_man.export_meta(note_id)
         tmp_file = NamedTemporaryFile()
         tmp_file.write(cfg_str)

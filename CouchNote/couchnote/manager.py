@@ -128,10 +128,10 @@ class NoteManager(object):
         return remote_changes
 
     def get_couch_changed(self, ids=None):
-        if keys is None:
-            keys = self._cache.keys()
+        if ids is None:
+            ids = self._cache.keys()
         remote_changes = []
-        for row in self._db.view('_all_docs', keys=keys):
+        for row in self._db.view('_all_docs', keys=ids):
             meta = self._cache[row['id']]
             if meta['rev'] != row['value']['rev']:
                 log.info('Linked Couch Document changed: %s'%meta['file_path'])
@@ -184,7 +184,12 @@ class NoteManager(object):
 
     def paths_to_ids(self, paths):
         ids = []
+        clean_paths = []
+        for path in paths:
+            if path.startswith(self._notes_root):
+                path = path[len(self._notes_root):]
+            clean_paths.append(path)
         for note_id in self._cache:
-            if meta['file_path'] in paths:
+            if self._cache[note_id]['file_path'] in clean_paths:
                 ids.append(note_id)
         return ids

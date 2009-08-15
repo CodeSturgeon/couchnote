@@ -52,7 +52,7 @@ class NoteManager(object):
             meta['summary'] = note.summary
             meta['md5'] = md5
             meta['file_path'] = file_path
-            meta['mtime'] = os.stat(os.path.join(self._notes_root,file_path))
+            meta['mtime'] = os.stat(full_path)[7]
             self._cache[meta['id']] = meta
 
     def upload_notes(self, note_ids):
@@ -147,10 +147,12 @@ class NoteManager(object):
                 log.warn('File gone: %s'%meta['file_path'])
                 kill_list.append(note_id)
                 continue
-            file_md5 = hashlib.md5(open(full_path).read()).hexdigest()
-            if file_md5 != meta['md5']:
-                log.info('Local file changed: %s'%meta['file_path'])
-                local_changes.append(note_id)
+            if meta['mtime'] != os.stat(full_path)[7]:
+                log.debug('mtime changed on %s'%full_path)
+                file_md5 = hashlib.md5(open(full_path).read()).hexdigest()
+                if file_md5 != meta['md5']:
+                    log.info('Local file changed: %s'%meta['file_path'])
+                    local_changes.append(note_id)
         for killed in kill_list:
             del self._cache[killed]
         return local_changes

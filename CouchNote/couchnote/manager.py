@@ -19,6 +19,8 @@ class CouchNote(schema.Document):
         schema.Schema.build(couchnote = schema.BooleanField(default = True)))
 
 class NoteManager(object):
+    '''Manages meta data linking couchnote objects to physical files.
+    '''
     def __init__(self, notes_root, cache_path, db, dry_run=False):
         self._cache_path = cache_path
         self._notes_root = notes_root
@@ -179,3 +181,10 @@ class NoteManager(object):
                 log.info('Summary updated on %s'%note_id)
                 self._cache[note_id]['summary'] = summary
                 self.upload_notes([note_id])
+
+    def paths_to_ids(self, paths):
+        ids = []
+        for note_id in self._cache:
+            if meta['file_path'] in paths:
+                ids.append(note_id)
+        return ids

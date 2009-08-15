@@ -132,7 +132,11 @@ Commands:
         new_notes = note_man.get_couch_new()
         note_man.download_notes(new_notes)
     elif args[1] == 'medit':
-        note_id = '16a71fedeff4b0b9cbc188af62d1bb72'
+        if len(args) < 3:
+            sys.exit('Need to specify a path!')
+        elif len(args) > 3:
+            log.warn('Discarding: %s'%args[3:])
+        note_id = note_man.paths_to_ids(args[2:3])
         cfg_str = note_man.export_meta(note_id)
         tmp_file = NamedTemporaryFile()
         tmp_file.write(cfg_str)

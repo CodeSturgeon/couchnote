@@ -142,6 +142,8 @@ Commands:
         tmp_file.write(cfg_str)
         tmp_file.flush()
         editor = os.getenv('EDITOR')
+        if editor is None:
+            sys.exit('Editor ENV not set')
         if call([editor,tmp_file.name]) != 0:
             sys.exit('Editor problem')
         note_man.import_meta(note_id, open(tmp_file.name).read())

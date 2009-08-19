@@ -157,11 +157,11 @@ class NoteManager(object):
             del self._cache[killed]
         return local_changes
 
-    def export_meta(self, id):
-        meta = self._cache[id]
+    def export_meta(self, note_id):
+        meta = self._cache[note_id]
         cfg = RawConfigParser()
         cfg.add_section('couchdb')
-        cfg.set('couchdb', 'id', id)
+        cfg.set('couchdb', 'id', note_id)
         cfg.set('couchdb', 'rev', meta['rev'])
         cfg.add_section('local')
         cfg.set('local', 'md5', meta['md5'])

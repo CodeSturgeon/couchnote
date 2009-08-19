@@ -16,7 +16,9 @@ class CouchNote(schema.Document):
     last_update_time = schema.DateTimeField(default=datetime.now)
     #udpate_notes = TextField() # going to tai chi, more of a status message?
     implements = schema.DictField(
-        schema.Schema.build(couchnote = schema.BooleanField(default = True)))
+        schema.Schema.build(couchnote = schema.BooleanField(default = True)
+                            published = schema.BooleanField(default = False)))
+    published_versions = schema.ListField()
 
 class NoteManager(object):
     '''Manages meta data linking couchnote objects to physical files.
@@ -195,3 +197,13 @@ class NoteManager(object):
             if self._cache[note_id]['file_path'] in clean_paths:
                 ids.append(note_id)
         return ids
+
+    def publish(self, note_id):
+        note = CouchNote.load(self._db, note_id)
+        note.implements['published'] = True
+        publish_data = {}
+        publish_data['summary'] = note.summary
+        publish_data['detail'] = note.detail
+        next = len(note.published_version)
+        note.published_version[next] = publish_data
+        note.save()

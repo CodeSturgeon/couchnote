@@ -148,6 +148,12 @@ Commands:
             sys.exit('Editor problem')
         note_man.import_meta(note_id, open(tmp_file.name).read())
         tmp_file.close()
+    elif args[1] == 'publish':
+        if len(args) < 3:
+            sys.exit('Need to specify path(s)!')
+        note_ids = note_man.paths_to_ids(args[2:])
+        for note_id in note_ids:
+            note_man.publish(note_id)
     else:
         parser.print_help()
         sys.exit('!!Bad command: %s!!'%args[1])

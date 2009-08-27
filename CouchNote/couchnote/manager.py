@@ -16,9 +16,14 @@ class CouchNote(schema.Document):
     last_update_time = schema.DateTimeField(default=datetime.now)
     #udpate_notes = TextField() # going to tai chi, more of a status message?
     implements = schema.DictField(
-        schema.Schema.build(couchnote = schema.BooleanField(default = True)
+        schema.Schema.build(couchnote = schema.BooleanField(default = True),
                             published = schema.BooleanField(default = False)))
-    published_versions = schema.ListField()
+    published_versions = schema.ListField(schema.DictField(
+            schema.Schema.build(
+                published_time = schema.DateTimeField(default=datetime.now),
+                published_summary = schema.TextField(),
+                published_detail = schema.TextField()
+            )))
 
 class NoteManager(object):
     '''Manages meta data linking couchnote objects to physical files.
@@ -199,11 +204,33 @@ class NoteManager(object):
         return ids
 
     def publish(self, note_id):
+        # Fix for breakage in couchdb-python
+        # See bug 88:
+        #       http://code.google.com/p/couchdb-python/issues/detail?id=88
+        raw_note = self._db.get(note_id)
+        if not raw_note.has_key('published_versions'):
+            raw_note.update({'published_versions':[]})
+            self._db.update([raw_note])
+        # Commence 'normall' code
         note = CouchNote.load(self._db, note_id)
-        note.implements['published'] = True
+        note.implements.published = True
         publish_data = {}
-        publish_data['summary'] = note.summary
-        publish_data['detail'] = note.detail
-        next = len(note.published_version)
-        note.published_version[next] = publish_data
-        note.save()
+        publish_data['published_summary'] = note.summary
+        publish_data['published_detail'] = note.detail
+        note.published_versions.append(**publish_data)
+        note.store(self._db)
+
+    def publish_raw(self, note_id):
+        note = self._db.get(note_id)
+        publish_data = {}
+        publish_data['published_summary'] = note['summary']
+        publish_data['published_detail'] = note['detail']
+        publish_data['published_time'] =\
+                schema.DateTimeField()._to_json(datetime.now())
+        published_versions = note.get('published_versions', [])
+        published_versions.append(publish_data)
+        implements = note.get('implements', {})
+        implements['published'] = True
+        note.update({'implements':implements,
+                'published_versions':published_versions})
+        self._db.update([note])

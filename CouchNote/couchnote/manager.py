@@ -204,6 +204,7 @@ class NoteManager(object):
         return ids
 
     def publish(self, note_id):
+        log.debug('Publishing %s'%note_id)
         # Fix for breakage in couchdb-python
         # See bug 88:
         #       http://code.google.com/p/couchdb-python/issues/detail?id=88
@@ -218,7 +219,9 @@ class NoteManager(object):
         publish_data['published_summary'] = note.summary
         publish_data['published_detail'] = note.detail
         note.published_versions.append(**publish_data)
-        note.store(self._db)
+        if not self._dry_run:
+            note.store(self._db)
+        log.info('Published "%s"'%note.summary)
 
     def publish_raw(self, note_id):
         note = self._db.get(note_id)

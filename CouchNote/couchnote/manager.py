@@ -20,15 +20,16 @@ class CouchNote(schema.Document):
                             published = schema.BooleanField(default = False)))
     published_versions = schema.ListField(schema.DictField(
             schema.Schema.build(
-                published_time = schema.DateTimeField(default=datetime.now),
-                published_summary = schema.TextField(),
-                published_detail = schema.TextField()
+                time = schema.DateTimeField(default=datetime.now),
+                summary = schema.TextField(),
+                detail = schema.TextField()
             )))
 
 class NoteManager(object):
     '''Manages meta data linking couchnote objects to physical files.
     '''
     def __init__(self, notes_root, cache_path, db, dry_run=False):
+        log.info('Running in Dry-Run mode')
         self._cache_path = cache_path
         self._notes_root = notes_root
         self._dry_run = dry_run
@@ -216,8 +217,8 @@ class NoteManager(object):
         note = CouchNote.load(self._db, note_id)
         note.implements.published = True
         publish_data = {}
-        publish_data['published_summary'] = note.summary
-        publish_data['published_detail'] = note.detail
+        publish_data['summary'] = note.summary
+        publish_data['detail'] = note.detail
         note.published_versions.append(**publish_data)
         if not self._dry_run:
             note.store(self._db)
@@ -226,9 +227,9 @@ class NoteManager(object):
     def publish_raw(self, note_id):
         note = self._db.get(note_id)
         publish_data = {}
-        publish_data['published_summary'] = note['summary']
-        publish_data['published_detail'] = note['detail']
-        publish_data['published_time'] =\
+        publish_data['summary'] = note['summary']
+        publish_data['detail'] = note['detail']
+        publish_data['time'] =\
                 schema.DateTimeField()._to_json(datetime.now())
         published_versions = note.get('published_versions', [])
         published_versions.append(publish_data)

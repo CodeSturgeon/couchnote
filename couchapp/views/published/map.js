@@ -1,5 +1,6 @@
 function(doc){
     if(doc.implements && doc.implements.published){
-        emit(doc.summary, null);
+        last_publish = doc.published_versions.pop()['time'];
+        emit(doc.summary, last_publish);
     }
 }

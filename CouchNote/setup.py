@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(name="CouchNote",
-      version="0.1dev",
+      version="0.2dev",
       description="CouchNote cmd line",
       author="Nick Fisher",
       packages = find_packages(),

@@ -39,7 +39,8 @@ def main():
 Commands:
   import - imports unknown txt files as new couch notes
   sync - syncs non-conflicting changes with couch
-  download - downloads all couch notes'''
+  download - downloads all couch notes
+  publish - publishes curent version of note'''
     parser = OptionParser(usage=usage,epilog=' ')
     parser.set_defaults(**defaults)
 

@@ -29,7 +29,8 @@ class NoteManager(object):
     '''Manages meta data linking couchnote objects to physical files.
     '''
     def __init__(self, notes_root, cache_path, db, dry_run=False):
-        log.info('Running in Dry-Run mode')
+        if dry_run:
+            log.info('Running in Dry-Run mode')
         self._cache_path = cache_path
         self._notes_root = notes_root
         self._dry_run = dry_run
@@ -209,12 +210,14 @@ class NoteManager(object):
         # Fix for breakage in couchdb-python
         # See bug 88:
         #       http://code.google.com/p/couchdb-python/issues/detail?id=88
-        raw_note = self._db.get(note_id)
-        if not raw_note.has_key('published_versions'):
-            raw_note.update({'published_versions':[]})
-            self._db.update([raw_note])
+        #raw_note = self._db.get(note_id)
+        #if not raw_note.has_key('published_versions'):
+        #    raw_note.update({'published_versions':[]})
+        #    self._db.update([raw_note])
         # Commence 'normall' code
         note = CouchNote.load(self._db, note_id)
+        if 'published_versions' not in note:
+            note['published_versions'] = []
         note.implements.published = True
         publish_data = {}
         publish_data['summary'] = note.summary
